@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Descubra seu curso Senac</title>
+  <style>
+    :root{
+      --senac-azul:#003f7d; --senac-laranja:#f7931e; --bg:#f6f8fb; --card:#fff;
+    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial; margin:0; background:var(--bg); color:#1b1f24;}
+    header{background:linear-gradient(90deg,var(--senac-azul),#1a60a9); color:#fff; padding:24px 16px;}
+    header h1{margin:0; font-size:1.5rem;}
+    main{max-width:920px; margin:24px auto; padding:0 16px;}
+    .card{background:var(--card); border-radius:16px; padding:20px; box-shadow:0 8px 24px rgba(0,0,0,.06); margin-bottom:16px;}
+    .grid{display:grid; gap:16px;}
+    @media(min-width:900px){ .grid{grid-template-columns: 1.2fr .8fr;} }
+    h2{margin:0 0 12px;}
+    .question{margin:14px 0; padding:12px; border:1px solid #e6e8eb; border-radius:12px;}
+    .options label{display:block; padding:8px 10px; border-radius:10px; border:1px solid #e6e8eb; margin:8px 0; cursor:pointer;}
+    .options input{margin-right:8px;}
+    .btn{background:var(--senac-laranja); color:#1b1f24; border:none; padding:12px 16px; font-weight:600; border-radius:12px; cursor:pointer;}
+    .btn[disabled]{opacity:.6; cursor:not-allowed;}
+    .muted{color:#6a737d; font-size:.92rem;}
+    .result{border-left:4px solid var(--senac-laranja); padding-left:12px;}
+    .badge{display:inline-block; background:#eef2ff; color:#1f3a8a; padding:4px 8px; border-radius:999px; margin:2px 6px 2px 0; font-size:.9rem;}
+    .consent{font-size:.9rem; margin-top:8px;}
+    .success{background:#ecfdf5; color:#065f46; border:1px solid #10b981; padding:10px 12px; border-radius:10px; margin-top:10px;}
+    .error{background:#fef2f2; color:#991b1b; border:1px solid #ef4444; padding:10px 12px; border-radius:10px; margin-top:10px;}
+    footer{padding:24px; text-align:center; color:#6a737d;}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Qual curso Senac combina mais com você?</h1>
+  <p class="muted">Responda ao teste e receba uma recomendação personalizada.</p>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card" id="quiz-card">
+      <h2>Questionário</h2>
+      <div id="quiz"></div>
+
+      <hr style="margin:16px 0;">
+      <h3>Seus dados para contato</h3>
+      <div class="question">
+        <label>Nome*<br><input id="name" required placeholder="Seu nome completo" style="width:100%; padding:10px; border-radius:10px; border:1px solid #e6e8eb;"></label>
+      </div>
+      <div class="question">
+        <label>E-mail*<br><input id="email" type="email" required placeholder="voce@exemplo.com" style="width:100%; padding:10px; border-radius:10px; border:1px solid #e6e8eb;"></label>
+      </div>
+      <div class="question">
+        <label>Telefone (WhatsApp)<br><input id="phone" placeholder="(DD) 9 9999-9999" style="width:100%; padding:10px; border-radius:10px; border:1px solid #e6e8eb;"></label>
+      </div>
+
+      <!-- Honeypot antispam (deve ficar vazio!) -->
+      <div style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;">
+        <label>Empresa<input id="company"></label>
+      </div>
+
+      <div class="consent">
+        <label><input id="consent" type="checkbox"> Aceito que meus dados sejam usados para contato sobre cursos do Senac (conforme LGPD).</label>
+      </div>
+
+      <div style="margin-top:14px;">
+        <button class="btn" id="finishBtn">Ver resultado e enviar</button>
+        <span class="muted">* Campos obrigatórios</span>
+      </div>
+
+      <div id="saveStatus"></div>
+    </section>
+
+    <aside class="card">
+      <h2>Resultado</h2>
+      <div id="result" class="result">
+        <p class="muted">O resultado aparecerá aqui após você responder.</p>
+      </div>
+    </aside>
+  </div>
+
+  <section class="card">
+    <h2>Transparência</h2>
+    <p class="muted">
+      Seus dados são usados apenas para calcular a recomendação e para que o Senac entre em contato. 
+      Nada é lido publicamente: salvamos só em uma coleção protegida no Firestore.
+    </p>
+  </section>
+</main>
+
+<footer>
+  &copy; Senac — Teste vocacional (exemplo didático)
+</footer>
+
+<!-- Firebase (Web modular) -->
+<script type="module">
+  // 1) Importes do Firebase (modular). Se preferir, atualize a versão para a mais recente.
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
+
+  // 2) Cole aqui sua config do Firebase Console
+  const firebaseConfig = {
+    apiKey: "COLE_AQUI",
+    authDomain: "COLE_AQUI.firebaseapp.com",
+    projectId: "COLE_AQUI",
+    storageBucket: "COLE_AQUI.appspot.com",
+    messagingSenderId: "COLE_AQUI",
+    appId: "COLE_AQUI"
+  };
+
+  // 3) Inicialização do app e App Check (reCAPTCHA v3)
+  const app = initializeApp(firebaseConfig);
+
+  // Substitua pela sua site key do reCAPTCHA v3 (App Check)
+  const RECAPTCHA_SITE_KEY = "COLE_SUA_SITE_KEY_DO_APPCHECK_AQUI";
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true
+  });
+
+  const db = getFirestore(app);
+
+  // ====== DADOS DO QUIZ ======
+  // Áreas do Senac (exemplo)
+  const AREAS = {
+    "TI": ["Técnico em Informática", "Programador Web", "Redes de Computadores"],
+    "Gestão": ["Administração", "Recursos Humanos", "Logística"],
+    "Design": ["Design Gráfico", "UX/UI Básico", "Edição de Imagens"],
+    "Saúde": ["Técnico em Enfermagem", "Cuidador de Idosos", "Primeiros Socorros"],
+    "Gastronomia": ["Gastronomia", "Confeitaria", "Panificação"],
+    "Turismo": ["Turismo", "Hotelaria", "Eventos"]
+  };
+
+  // Perguntas (cada opção atribui pontos a 1+ áreas)
+  const QUESTIONS = [
+    {
+      id: "q1",
+      text: "Quando você pensa no seu dia a dia ideal, o que mais te anima?",
+      options: [
+        { text: "Resolver problemas com tecnologia", weights: { TI: 2, Gestão: 1 } },
+        { text: "Organizar pessoas e processos",    weights: { Gestão: 2 } },
+        { text: "Criar identidades visuais",        weights: { Design: 2 } },
+        { text: "Ajudar na saúde das pessoas",      weights: { Saúde: 2 } },
+        { text: "Criar e testar receitas",          weights: { Gastronomia: 2 } },
+        { text: "Planejar viagens e eventos",       weights: { Turismo: 2 } }
+      ]
+    },
+    {
+      id: "q2",
+      text: "Qual atividade você faria com mais satisfação por horas?",
+      options: [
+        { text: "Codar e montar páginas",              weights: { TI: 2, Design: 1 } },
+        { text: "Planejar metas e acompanhar resultados", weights: { Gestão: 2 } },
+        { text: "Desenhar layouts e protótipos",         weights: { Design: 2 } },
+        { text: "Cuidar de pessoas e estudar anatomia",  weights: { Saúde: 2 } },
+        { text: "Experimentar sabores e técnicas",       weights: { Gastronomia: 2 } },
+        { text: "Criar roteiros e experiências",         weights: { Turismo: 2 } }
+      ]
+    },
+    {
+      id: "q3",
+      text: "Em um trabalho em equipe, qual papel costuma ser o seu?",
+      options: [
+        { text: "Resolver a parte técnica", weights: { TI: 2 } },
+        { text: "Liderar e organizar",      weights: { Gestão: 2 } },
+        { text: "Propor a identidade visual", weights:{ Design: 2 } },
+        { text: "Cuidar da segurança e bem-estar", weights:{ Saúde: 2 } },
+        { text: "Cozinhar e apresentar pratos", weights:{ Gastronomia: 2 } },
+        { text: "Atender e encantar clientes", weights:{ Turismo: 2 } }
+      ]
+    },
+    {
+      id: "q4",
+      text: "Qual desses ambientes você mais se imagina?",
+      options: [
+        { text: "Laboratório de informática/estúdio web", weights:{ TI: 2, Design: 1 } },
+        { text: "Escritório com planilhas e reuniões",    weights:{ Gestão: 2 } },
+        { text: "Agência/estúdio criativo",               weights:{ Design: 2 } },
+        { text: "Clínica/Hospital",                        weights:{ Saúde: 2 } },
+        { text: "Cozinha profissional",                    weights:{ Gastronomia: 2 } },
+        { text: "Hotel/Agência de viagens/Eventos",        weights:{ Turismo: 2 } }
+      ]
+    },
+    {
+      id: "q5",
+      text: "O que você mais curte aprender/conhecer?",
+      options: [
+        { text: "Programação, redes, hardware", weights:{ TI: 2 } },
+        { text: "Gestão, finanças, liderança",  weights:{ Gestão: 2 } },
+        { text: "Tipografia, cores, UX/UI",     weights:{ Design: 2 } },
+        { text: "Saúde, cuidados, anatomia",    weights:{ Saúde: 2 } },
+        { text: "Culinária, confeitaria",       weights:{ Gastronomia: 2 } },
+        { text: "Turismo, hotelaria, eventos",  weights:{ Turismo: 2 } }
+      ]
+    },
+    {
+      id: "q6",
+      text: "Qual frase mais combina com você?",
+      options: [
+        { text: "Adoro automatizar e otimizar com tecnologia.", weights:{ TI: 2 } },
+        { text: "Gosto de planejar e ver o time performar.",    weights:{ Gestão: 2 } },
+        { text: "Quero transformar ideias em visuais.",         weights:{ Design: 2 } },
+        { text: "Quero cuidar do outro e fazer a diferença.",   weights:{ Saúde: 2 } },
+        { text: "Minha paixão é criar experiências gastronômicas.", weights:{ Gastronomia: 2 } },
+        { text: "Amo receber bem e encantar clientes.",         weights:{ Turismo: 2 } }
+      ]
+    }
+  ];
+
+  // ====== Renderização do quiz ======
+  const quizDiv = document.getElementById('quiz');
+  QUESTIONS.forEach((q, idx) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'question';
+    const title = document.createElement('div');
+    title.innerHTML = `<strong>${idx+1}. ${q.text}</strong>`;
+    const opts = document.createElement('div');
+    opts.className = 'options';
+
+    q.options.forEach((opt, i) => {
+      const id = `${q.id}_${i}`;
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="radio" name="${q.id}" value="${i}" id="${id}"> ${opt.text}`;
+      opts.appendChild(label);
+    });
+
+    wrapper.appendChild(title);
+    wrapper.appendChild(opts);
+    quizDiv.appendChild(wrapper);
+  });
+
+  // ====== Lógica de pontuação ======
+  function computeScores(answers) {
+    const scores = { TI:0, Gestão:0, Design:0, Saúde:0, Gastronomia:0, Turismo:0 };
+    answers.forEach(a => {
+      const q = QUESTIONS.find(x => x.id === a.qId);
+      if (!q) return;
+      const opt = q.options[a.optionIndex];
+      if (!opt) return;
+      Object.entries(opt.weights).forEach(([area, pts]) => {
+        scores[area] = (scores[area] || 0) + pts;
+      });
+    });
+    return scores;
+  }
+
+  function topAreas(scores, n=2){
+    return Object.entries(scores)
+      .sort((a,b)=> b[1]-a[1])
+      .slice(0,n)
+      .map(([area])=>area);
+  }
+
+  function buildRecommendation(areas){
+    // mapeia áreas para cursos sugeridos
+    return areas.map(area => ({ area, courses: AREAS[area] || [] }));
+  }
+
+  // ====== UI: calcular e salvar ======
+  const finishBtn = document.getElementById('finishBtn');
+  const resultBox = document.getElementById('result');
+  const saveStatus = document.getElementById('saveStatus');
+
+  finishBtn.addEventListener('click', async () => {
+    saveStatus.innerHTML = '';
+
+    // Validação básica
+    const name  = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const consent = document.getElementById('consent').checked;
+    const honeypot = document.getElementById('company').value.trim(); // deve estar vazio
+
+    if (honeypot) {
+      saveStatus.innerHTML = `<div class="error">Erro: formulário inválido.</div>`;
+      return;
+    }
+    if (!name || !email || !consent){
+      saveStatus.innerHTML = `<div class="error">Por favor, preencha Nome, E-mail e aceite o consentimento.</div>`;
+      return;
+    }
+
+    // Coleta respostas
+    const answers = [];
+    for (const q of QUESTIONS){
+      const sel = document.querySelector(`input[name="${q.id}"]:checked`);
+      if (!sel){
+        saveStatus.innerHTML = `<div class="error">Você deixou a pergunta "${q.text}" sem resposta.</div>`;
+        return;
+      }
+      answers.push({ qId: q.id, optionIndex: Number(sel.value) });
+    }
+
+    // Calcula pontuação e recomendação
+    const scores = computeScores(answers);
+    const areas  = topAreas(scores, 2);
+    const rec    = buildRecommendation(areas);
+
+    // Mostra resultado
+    resultBox.innerHTML = `
+      <p><strong>Áreas que mais combinam com você:</strong></p>
+      <p>${areas.map(a=>`<span class="badge">${a}</span>`).join(' ')}</p>
+      <p><strong>Cursos recomendados:</strong></p>
+      <ul>
+        ${rec.map(r=>`<li><strong>${r.area}:</strong> ${r.courses.slice(0,3).join(', ')}</li>`).join('')}
+      </ul>
+      <p class="muted">Esta é uma indicação inicial. Um consultor do Senac pode orientar a escolha final.</p>
+    `;
+
+    // Salva no Firestore
+    finishBtn.disabled = true;
+    try{
+      await addDoc(collection(db, 'responses'), {
+        name, email, phone,
+        answers,
+        scores,
+        topAreas: areas,
+        recommended: rec,
+        createdAt: serverTimestamp(),
+        source: 'web'
+      });
+      saveStatus.innerHTML = `<div class="success">Resposta enviada com sucesso! Em breve entraremos em contato.</div>`;
+    }catch(err){
+      console.error(err);
+      saveStatus.innerHTML = `<div class="error">Não foi possível salvar agora. Verifique sua conexão e tente novamente.</div>`;
+    }finally{
+      finishBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
